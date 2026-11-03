@@ -48,11 +48,17 @@ if (-not (Test-Path $python)) {
 }
 
 # Install the Spot SDK if it's missing, including after an earlier install was cut short.
-& $python -c "import bosdyn.client, fastapi, uvicorn" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "Installing the Spot SDK (needs internet)..."
-    & $python -m pip install --quiet --disable-pip-version-check -r (Join-Path $PSScriptRoot "requirements.txt")
-    if ($LASTEXITCODE -ne 0) { Write-Host "Installing packages failed. Check the internet connection and run this again."; exit 1 }
+# Look for printed output, not the exit code: PowerShell 5.1 doesn't always report it after 2>$null.
+function Test-Packages { "$(& $python -c "import bosdyn.client, fastapi, uvicorn; print('ok')" 2>$null)" -eq "ok" }
+if (-not (Test-Packages)) {
+    Write-Host "Installing the Spot SDK (needs internet, takes a few minutes)..."
+    & $python -m pip install --disable-pip-version-check -r (Join-Path $PSScriptRoot "requirements.txt")
+    if (-not (Test-Packages)) {
+        Write-Host ""
+        Write-Host "Installing packages failed (see the messages above). Check the internet connection and run this again."
+        & $python -c "import bosdyn.client, fastapi, uvicorn"
+        exit 1
+    }
 }
 
 $serverArgs = @((Join-Path $PSScriptRoot "server.py"), "--host", "127.0.0.1", "--port", $Port)
