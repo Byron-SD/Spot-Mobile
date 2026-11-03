@@ -1,0 +1,9 @@
+{
+  "name": "Spot Mobile",
+  "short_name": "Spot",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0e1116",
+  "theme_color": "#0e1116"
+}

@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e1116">
+<title>Spot Laptop</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #171b22;
+    --panel-2: #1f252e;
+    --line: #2a313c;
+    --text: #e8ebf0;
+    --muted: #8a93a3;
+    --accent: #f5c400;
+    --ok: #3ccf7a;
+    --warn: #ffb020;
+    --danger: #ff3b30;
+    --danger-dark: #b0201a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  body {
+    display: grid; height: 100vh; padding: 12px; gap: 12px;
+    grid-template-columns: 1fr 340px; grid-template-rows: auto 1fr;
+    grid-template-areas: "status status" "view side";
+  }
+  .status { grid-area: status; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .brand { font-weight: 700; font-size: 16px; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .brand .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .chip {
+    font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--panel);
+    border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+  }
+  .chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+  .chip.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
+
+  /* Camera */
+  .view {
+    grid-area: view; position: relative; min-height: 0; background: #000; border: 1px solid var(--line);
+    border-radius: 14px; overflow: hidden;
+  }
+  .view canvas { width: 100%; height: 100%; display: block; }
+  .view .cam-bar {
+    position: absolute; top: 10px; left: 10px; display: flex; gap: 8px; align-items: center;
+  }
+  .view .cam-msg {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); pointer-events: none; text-align: center; padding: 20px;
+  }
+  .view .driving {
+    position: absolute; bottom: 10px; left: 10px; font-variant-numeric: tabular-nums;
+    background: #000a; border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; font-size: 12px; color: var(--muted);
+  }
+  .view .driving.moving { color: var(--accent); border-color: var(--accent); }
+  select, .btn {
+    appearance: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+    border-radius: 10px; padding: 8px 10px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  select { background: #000a; font-weight: 500; }
+
+  /* Side panel */
+  .side { grid-area: side; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow-y: auto; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .btn:hover:not(:disabled) { background: var(--line); }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn.primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  .btn kbd { font-size: 10px; opacity: .6; margin-left: 4px; }
+  .slider-row { display: grid; grid-template-columns: 56px 1fr 48px; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+  .slider-row + .slider-row { margin-top: 8px; }
+  .slider-row output { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+
+  /* Key map */
+  .keys { display: grid; grid-template-columns: repeat(3, 44px); gap: 5px; justify-content: center; margin-bottom: 10px; }
+  .key {
+    height: 40px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;
+  }
+  .key small { font-size: 9px; color: var(--muted); font-weight: 500; }
+  .key.down { background: var(--accent); color: #111; border-color: var(--accent); }
+  .key.down small { color: #111a; }
+  .legend { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12px; color: var(--muted); }
+  .legend kbd, .hint kbd {
+    font: 11px ui-monospace, Consolas, monospace; color: var(--text); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; justify-self: start;
+  }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  /* E-Stop */
+  .btn.estop {
+    background: var(--danger); border-color: var(--danger-dark); color: #fff; font-size: 22px; font-weight: 800;
+    letter-spacing: .06em; min-height: 70px; width: 100%; box-shadow: 0 4px 0 var(--danger-dark);
+  }
+  .btn.estop:hover:not(:disabled) { background: #ff5147; }
+  .btn.estop.release { background: var(--panel-2); color: var(--danger); border: 2px solid var(--danger); box-shadow: none; font-size: 16px; }
+  .btn.stop { width: 100%; border-color: var(--warn); color: var(--warn); margin-top: 8px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: #000d; border: 1px solid var(--line); padding: 10px 14px; border-radius: 10px;
+    max-width: 80vw; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { border-color: var(--danger); color: #ffd6d4; }
+  .overlay { position: fixed; inset: 0; background: #000b; display: none; align-items: center; justify-content: center; z-index: 20; }
+  .overlay.show { display: flex; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; width: 320px; text-align: center; }
+  .card h2 { margin: 0 0 6px; font-size: 18px; }
+  .card p { margin: 0 0 14px; color: var(--muted); }
+  .card input {
+    width: 100%; font-size: 22px; text-align: center; letter-spacing: .3em; padding: 10px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); margin-bottom: 12px;
+  }
+  .card .btn { width: 100%; }
+
+  @media (max-width: 860px) {
+    body { grid-template-columns: 1fr; grid-template-rows: auto 55vh auto; grid-template-areas: "status" "view" "side"; height: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header class="status">
+  <div class="brand"><span class="dot" id="linkDot"></span>Spot · Laptop</div>
+  <span class="chip" id="chipPad">No gamepad</span>
+  <span class="chip" id="chipBattery">--%</span>
+  <span class="chip" id="chipPower">Motors --</span>
+  <span class="chip" id="chipEstop">E-Stop --</span>
+</header>
+
+<main class="view">
+  <canvas id="cam"></canvas>
+  <div class="cam-msg" id="camMsg">Waiting for camera…</div>
+  <div class="cam-bar">
+    <select id="camSource" aria-label="Camera">
+      <option value="frontleft_fisheye_image">Front left</option>
+      <option value="frontright_fisheye_image">Front right</option>
+      <option value="left_fisheye_image">Left</option>
+      <option value="right_fisheye_image">Right</option>
+      <option value="back_fisheye_image">Back</option>
+      <option value="">Camera off</option>
+    </select>
+  </div>
+  <div class="driving" id="driving">Idle</div>
+</main>
+
+<aside class="side">
+  <section class="panel">
+    <button class="btn estop" id="btnEstop">E-STOP <kbd>Space</kbd></button>
+    <button class="btn stop" id="btnStop">Stop motion <kbd>X</kbd></button>
+  </section>
+
+  <section class="panel">
+    <div class="grid">
+      <button class="btn primary" id="btnPower">Power On <kbd>P</kbd></button>
+      <button class="btn" id="btnStand">Stand <kbd>F</kbd></button>
+      <button class="btn" id="btnSit">Sit <kbd>V</kbd></button>
+      <button class="btn" id="btnSelfRight">Self-right</button>
+      <button class="btn" id="btnBattery">Roll over</button>
+      <button class="btn" id="btnReconnect">Reconnect</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <label class="slider-row"><span>Speed</span><input type="range" id="speed" min="10" max="100" step="5" value="50"><output id="speedOut">50%</output></label>
+    <label class="slider-row"><span>Height</span><input type="range" id="height" min="-15" max="15" step="1" value="0"><output id="heightOut">0 cm</output></label>
+    <div class="hint"><kbd>[</kbd> <kbd>]</kbd> change speed · <kbd>-</kbd> <kbd>=</kbd> change height</div>
+  </section>
+
+  <section class="panel">
+    <h3>Drive (hold keys)</h3>
+    <div class="keys">
+      <div class="key" data-code="KeyQ">Q<small>turn L</small></div>
+      <div class="key" data-code="KeyW">W<small>fwd</small></div>
+      <div class="key" data-code="KeyE">E<small>turn R</small></div>
+      <div class="key" data-code="KeyA">A<small>left</small></div>
+      <div class="key" data-code="KeyS">S<small>back</small></div>
+      <div class="key" data-code="KeyD">D<small>right</small></div>
+    </div>
+    <div class="legend">
+      <kbd>↑ ↓</kbd><span>forward / back</span>
+      <kbd>← →</kbd><span>turn</span>
+      <kbd>Shift</kbd><span>hold for half speed</span>
+      <kbd>Gamepad</kbd><span>left stick move, right stick turn, B = stop</span>
+    </div>
+    <div class="hint">Spot only moves while a key is held, and stops if this window loses focus.</div>
+  </section>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<div class="overlay" id="pinOverlay">
+  <form class="card" id="pinForm">
+    <h2>Enter PIN</h2>
+    <p>This controller is protected. Enter the PIN set on the server.</p>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off">
+    <button class="btn primary" type="submit">Connect</button>
+  </form>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const SEND_HZ = 10;
+  const MAX = { vx: 1.0, vy: 0.5, vrot: 1.0 };  // before the speed slider; the server clamps again
+  const DRIVE_KEYS = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+
+  let ws = null;
+  let ready = false;
+  let state = { powered: false, estopped: false };
+  let wasMoving = false;
+  const held = new Set();
+
+  function store(key, value) { try { localStorage.setItem(key, value); } catch {} }
+  function load(key) { try { return localStorage.getItem(key); } catch { return null; } }
+
+  // ---------- Feedback ----------
+  let toastTimer;
+  function toast(msg, isError = false) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.className = 'toast', isError ? 3500 : 1800);
+  }
+
+  // ---------- Connection ----------
+  function connect() {
+    if (ws) { try { ws.close(); } catch {} }
+    ready = false;
+    setLink(false);
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', pin: load('spotPin') || '' }));
+    ws.onmessage = ev => handle(JSON.parse(ev.data));
+    ws.onclose = ev => {
+      ready = false;
+      setLink(false);
+      if (ev.code === 4001) { $('pinOverlay').classList.add('show'); $('pinInput').focus(); return; }
+      if (ev.code === 4002) return;  // another device is in control; the error toast already explains
+      setTimeout(connect, 1500);
+    };
+  }
+
+  function send(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN && ready) { ws.send(JSON.stringify(msg)); return true; }
+    return false;
+  }
+
+  function command(type) {
+    if (!send({ type })) toast('Not connected', true);
+  }
+
+  function handle(msg) {
+    switch (msg.type) {
+      case 'ready': ready = true; setLink(true); toast('Connected'); requestFrame(); break;
+      case 'status': applyStatus(msg); break;
+      case 'ack': toast(labelFor(msg.command) + ' ✓'); break;
+      case 'error': toast(msg.message, true); break;
+      case 'image': showFrame(msg); break;
+    }
+  }
+
+  function labelFor(cmd) {
+    return ({ power_on: 'Power on', power_off: 'Power off', sit: 'Sit', stop: 'Stop', self_right: 'Self-right',
+              battery_change: 'Roll over', estop: 'E-Stop', estop_release: 'E-Stop released' })[cmd] || cmd;
+  }
+
+  function setLink(on) {
+    $('linkDot').classList.toggle('on', on);
+    if (!on) {
+      setChip('chipBattery', '--%', '');
+      setChip('chipPower', 'Offline', 'bad');
+      setChip('chipEstop', 'E-Stop --', '');
+    }
+  }
+
+  function setChip(id, text, cls) { const c = $(id); c.textContent = text; c.className = 'chip ' + cls; }
+
+  function applyStatus(s) {
+    if (!s.connected) {
+      setChip('chipPower', 'No robot', 'bad');
+      $('chipPower').title = s.error || '';
+      state = { powered: false, estopped: false };
+      return;
+    }
+    $('chipPower').title = '';
+    state = s;
+    if (s.battery != null) setChip('chipBattery', `Battery ${s.battery}%`, s.battery < 20 ? 'bad' : s.battery < 40 ? 'warn' : 'ok');
+    setChip('chipPower', s.powered ? 'Motors on' : 'Motors off', s.powered ? 'ok' : '');
+    setChip('chipEstop', s.estopped ? 'E-Stopped' : (s.software_estop ? 'E-Stop armed' : 'No laptop E-Stop'),
+            s.estopped ? 'bad' : (s.software_estop ? 'ok' : 'warn'));
+    if (s.mock) $('linkDot').title = 'Mock robot';
+
+    const power = $('btnPower');
+    power.innerHTML = (s.powered ? 'Power Off' : 'Power On') + ' <kbd>P</kbd>';
+    power.classList.toggle('primary', !s.powered);
+    power.disabled = s.estopped;
+
+    const estop = $('btnEstop');
+    estop.innerHTML = s.estopped ? 'Release E-Stop' : 'E-STOP <kbd>Space</kbd>';
+    estop.classList.toggle('release', s.estopped);
+    estop.disabled = !s.software_estop;
+
+    for (const id of ['btnStand', 'btnSit', 'btnSelfRight', 'btnBattery']) $(id).disabled = !s.powered;
+  }
+
+  // ---------- Camera ----------
+  const canvas = $('cam');
+  const ctx = canvas.getContext('2d');
+  let frameTimer = null;
+
+  function requestFrame(delay = 0) {
+    clearTimeout(frameTimer);
+    frameTimer = setTimeout(() => {
+      const source = $('camSource').value;
+      if (source && !document.hidden) send({ type: 'camera', source });
+    }, delay);
+  }
+
+  function showFrame(msg) {
+    if (msg.source !== $('camSource').value) { requestFrame(); return; }  // camera was switched mid-frame
+    if (msg.error) {
+      $('camMsg').textContent = 'Camera: ' + msg.error;
+      $('camMsg').style.display = '';
+      requestFrame(1000);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      drawRotated(img, msg.rotation || 0);
+      $('camMsg').style.display = 'none';
+      requestFrame(50);
+    };
+    img.onerror = () => requestFrame(500);
+    img.src = `data:${msg.mime};base64,${msg.data}`;
+  }
+
+  // Spot's front cameras are mounted sideways; rotate them upright and fit to the panel.
+  function drawRotated(img, degrees) {
+    const w = canvas.clientWidth, h = canvas.clientHeight, dpr = window.devicePixelRatio || 1;
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+    const rad = degrees * Math.PI / 180;
+    const bw = Math.abs(img.width * Math.cos(rad)) + Math.abs(img.height * Math.sin(rad));
+    const bh = Math.abs(img.width * Math.sin(rad)) + Math.abs(img.height * Math.cos(rad));
+    const scale = Math.min(canvas.width / bw, canvas.height / bh);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(rad);
+    ctx.scale(scale, scale);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+  }
+
+  $('camSource').onchange = e => {
+    store('spotCam', e.target.value);
+    e.target.blur();  // hand the keyboard back to driving
+    if (e.target.value) { $('camMsg').textContent = 'Loading camera…'; requestFrame(); }
+    else { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); $('camMsg').textContent = 'Camera off'; }
+    $('camMsg').style.display = '';
+  };
+
+  // ---------- Driving ----------
+  function speed() { return Number($('speed').value) / 100; }
+  function height() { return Number($('height').value) / 100; }
+
+  function readGamepad() {
+    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+    const pad = pads[0];
+    setChip('chipPad', pad ? 'Gamepad connected' : 'No gamepad', pad ? 'ok' : '');
+    if (!pad) return null;
+    const dz = v => Math.abs(v) < 0.15 ? 0 : v;  // dead zone so a resting stick doesn't creep the robot
+    if (pad.buttons[1] && pad.buttons[1].pressed) return { stop: true };
+    const lx = dz(pad.axes[0] || 0), ly = dz(pad.axes[1] || 0), rx = dz(pad.axes[2] || 0);
+    if (!lx && !ly && !rx) return null;
+    return { vx: -ly, vy: -lx, vrot: -rx };
+  }
+
+  function readKeys() {
+    const k = c => held.has(c) ? 1 : 0;
+    const vx = k('KeyW') + k('ArrowUp') - k('KeyS') - k('ArrowDown');
+    const vy = k('KeyA') - k('KeyD');
+    const vrot = k('KeyQ') + k('ArrowLeft') - k('KeyE') - k('ArrowRight');
+    if (!vx && !vy && !vrot) return null;
+    return { vx: Math.sign(vx), vy, vrot: Math.sign(vrot) };
+  }
+
+  // Commands only flow while a key or stick is held. Spot stops by itself ~0.6 s
+  // after the last move command, so a frozen tab or dropped link can't leave it walking.
+  setInterval(() => {
+    const pad = readGamepad();
+    if (pad && pad.stop) { held.clear(); command('stop'); wasMoving = false; return; }
+    const input = readKeys() || pad;
+    const d = $('driving');
+    if (input && state.powered) {
+      const k = speed() * (held.has('ShiftLeft') || held.has('ShiftRight') ? 0.5 : 1);
+      const cmd = { type: 'move', vx: input.vx * MAX.vx * k, vy: input.vy * MAX.vy * k, vrot: input.vrot * MAX.vrot * k };
+      send(cmd);
+      wasMoving = true;
+      d.textContent = `vx ${cmd.vx.toFixed(2)} m/s · vy ${cmd.vy.toFixed(2)} m/s · turn ${cmd.vrot.toFixed(2)} rad/s`;
+      d.classList.add('moving');
+    } else {
+      if (wasMoving) send({ type: 'move', vx: 0, vy: 0, vrot: 0 });
+      wasMoving = false;
+      d.textContent = state.powered ? 'Idle' : 'Motors off';
+      d.classList.remove('moving');
+    }
+  }, 1000 / SEND_HZ);
+
+  function stopAll() {
+    held.clear();
+    renderKeys();
+    send({ type: 'stop' });
+  }
+
+  function renderKeys() {
+    for (const el of document.querySelectorAll('.key')) el.classList.toggle('down', held.has(el.dataset.code));
+  }
+
+  function nudge(id, delta) {
+    const el = $(id);
+    el.value = Number(el.value) + delta;
+    el.dispatchEvent(new Event('input'));
+    el.dispatchEvent(new Event('change'));
+  }
+
+  function estopPressed() {
+    if (state.estopped) return;  // releasing needs the button and a confirm, never a stray keypress
+    held.clear();
+    renderKeys();
+    command('estop');
+  }
+
+  function togglePower() {
+    if (state.powered) {
+      if (confirm('Power off motors? Spot will sit down first.')) command('power_off');
+    } else {
+      toast('Powering on…');
+      command('power_on');
+    }
+  }
+
+  window.addEventListener('keydown', e => {
+    if (e.target.closest?.('input[type=password]')) return;
+    if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) estopPressed(); return; }
+    if (DRIVE_KEYS.includes(e.code) || e.code.startsWith('Shift')) {
+      e.preventDefault();
+      if (DRIVE_KEYS.includes(e.code) && !state.powered && !e.repeat) toast('Power on first (P)');
+      held.add(e.code);
+      renderKeys();
+      return;
+    }
+    if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+    switch (e.code) {
+      case 'KeyP': togglePower(); break;
+      case 'KeyF': if (state.powered) send({ type: 'stand', height: height() }); break;
+      case 'KeyV': if (state.powered) command('sit'); break;
+      case 'KeyX': stopAll(); toast('Stop'); break;
+      case 'BracketLeft': nudge('speed', -5); break;
+      case 'BracketRight': nudge('speed', 5); break;
+      case 'Minus': nudge('height', -1); break;
+      case 'Equal': nudge('height', 1); break;
+      default: return;
+    }
+    e.preventDefault();
+  });
+  window.addEventListener('keyup', e => { held.delete(e.code); renderKeys(); });
+
+  // Losing focus means we stop seeing keyups, so stop rather than keep walking.
+  window.addEventListener('blur', stopAll);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) stopAll(); else requestFrame(); });
+
+  // ---------- Buttons ----------
+  $('speed').oninput = e => { $('speedOut').textContent = e.target.value + '%'; store('spotSpeed', e.target.value); };
+  $('height').oninput = e => { $('heightOut').textContent = e.target.value + ' cm'; };
+  $('height').onchange = () => { if (state.powered) send({ type: 'stand', height: height() }); };
+  // Sliders keep arrow keys for themselves while focused; give focus back so arrows drive.
+  for (const id of ['speed', 'height']) $(id).addEventListener('pointerup', e => e.target.blur());
+
+  $('btnPower').onclick = togglePower;
+  $('btnStand').onclick = () => send({ type: 'stand', height: height() });
+  $('btnSit').onclick = () => command('sit');
+  $('btnSelfRight').onclick = () => { if (confirm('Run self-right? Only use this if Spot has fallen over.')) command('self_right'); };
+  $('btnBattery').onclick = () => { if (confirm('Roll Spot onto its side for battery change? Spot must be sitting.')) command('battery_change'); };
+  $('btnStop').onclick = () => { stopAll(); toast('Stop'); };
+  $('btnReconnect').onclick = () => { toast('Reconnecting…'); connect(); };
+  // Buttons shouldn't keep focus, or Space would "click" them instead of E-Stopping.
+  for (const b of document.querySelectorAll('button')) b.addEventListener('mouseup', () => b.blur());
+
+  $('btnEstop').addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    if (state.estopped) {
+      if (confirm('Release the E-Stop? Make sure the area around Spot is clear.')) command('estop_release');
+    } else {
+      estopPressed();
+    }
+  });
+
+  $('pinForm').onsubmit = ev => {
+    ev.preventDefault();
+    store('spotPin', $('pinInput').value);
+    $('pinOverlay').classList.remove('show');
+    connect();
+  };
+
+  const savedSpeed = load('spotSpeed');
+  if (savedSpeed) { $('speed').value = savedSpeed; $('speedOut').textContent = savedSpeed + '%'; }
+  const savedCam = load('spotCam');
+  if (savedCam !== null) $('camSource').value = savedCam;
+  setLink(false);
+  connect();
+})();
+</script>
+</body>
+</html>

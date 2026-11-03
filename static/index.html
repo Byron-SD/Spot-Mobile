@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0e1116">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Spot Mobile</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #171b22;
+    --panel-2: #1f252e;
+    --line: #2a313c;
+    --text: #e8ebf0;
+    --muted: #8a93a3;
+    --accent: #f5c400;
+    --ok: #3ccf7a;
+    --warn: #ffb020;
+    --danger: #ff3b30;
+    --danger-dark: #b0201a;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 15px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none; user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
+  body {
+    display: grid; height: 100dvh;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+             max(10px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    gap: 10px;
+    grid-template-rows: auto auto 1fr auto;
+    grid-template-areas: "status" "actions" "sticks" "estop";
+  }
+  /* Status bar */
+  .status { grid-area: status; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .brand { font-weight: 700; letter-spacing: .02em; margin-right: auto; display: flex; align-items: center; gap: 8px; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); }
+  .brand .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .chip {
+    font-size: 12px; padding: 4px 9px; border-radius: 999px; background: var(--panel);
+    border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+  }
+  .chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+  .chip.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
+  .icon-btn {
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    border-radius: 8px; padding: 4px 8px; font-size: 14px;
+  }
+
+  /* Action buttons */
+  .actions { grid-area: actions; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .btn {
+    appearance: none; border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+    border-radius: 12px; padding: 12px 6px; font-size: 14px; font-weight: 600; min-height: 46px;
+    transition: transform .05s, background .15s;
+  }
+  .btn:active { transform: scale(.97); background: var(--line); }
+  .btn:disabled { opacity: .35; }
+  .btn.primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  .btn.on { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .row-full { grid-column: 1 / -1; }
+  .slider-row {
+    grid-column: 1 / -1; display: grid; grid-template-columns: 68px 1fr 44px; align-items: center; gap: 8px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 10px;
+    font-size: 13px; color: var(--muted);
+  }
+  .slider-row output { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--accent); touch-action: pan-x; }
+  .seg { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
+  .seg button { border: 0; background: transparent; color: var(--muted); font-weight: 600; padding: 9px; border-radius: 9px; font-size: 14px; }
+  .seg button.active { background: var(--panel-2); color: var(--text); box-shadow: 0 0 0 1px var(--line) inset; }
+
+  /* Joysticks */
+  .sticks { grid-area: sticks; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-height: 0; }
+  .stick-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 0; }
+  .stick-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .stick {
+    position: relative; width: min(100%, 220px); aspect-ratio: 1; border-radius: 50%;
+    background: radial-gradient(circle, var(--panel-2) 0%, var(--panel) 70%);
+    border: 2px solid var(--line); touch-action: none;
+  }
+  .stick::before, .stick::after { content: ""; position: absolute; background: var(--line); }
+  .stick::before { left: 50%; top: 12%; bottom: 12%; width: 1px; }
+  .stick::after { top: 50%; left: 12%; right: 12%; height: 1px; }
+  .knob {
+    position: absolute; left: 50%; top: 50%; width: 38%; aspect-ratio: 1; border-radius: 50%;
+    transform: translate(-50%, -50%); background: #3a4350; border: 2px solid #56606f; z-index: 1;
+    box-shadow: 0 4px 14px rgba(0,0,0,.5); pointer-events: none;
+  }
+  .stick.active { border-color: var(--accent); }
+  .stick.active .knob { background: var(--accent); border-color: #fff3; }
+  .stick.disabled { opacity: .35; }
+
+  /* E-Stop */
+  .estop-area { grid-area: estop; display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+  .btn.stop { background: var(--panel-2); border-color: var(--warn); color: var(--warn); font-size: 15px; }
+  .btn.estop {
+    background: var(--danger); border-color: var(--danger-dark); color: #fff; font-size: 20px; font-weight: 800;
+    letter-spacing: .06em; min-height: 62px; box-shadow: 0 4px 0 var(--danger-dark);
+  }
+  .btn.estop:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--danger-dark); background: var(--danger); }
+  .btn.estop.release { background: var(--panel-2); color: var(--danger); border: 2px solid var(--danger); box-shadow: none; font-size: 16px; }
+
+  /* Toast + overlay */
+  .toast {
+    position: fixed; left: 50%; bottom: calc(90px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+    background: #000c; border: 1px solid var(--line); padding: 10px 14px; border-radius: 10px;
+    max-width: 90vw; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 10;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { border-color: var(--danger); color: #ffd6d4; }
+  .overlay {
+    position: fixed; inset: 0; background: #000b; display: none; align-items: center; justify-content: center; z-index: 20;
+  }
+  .overlay.show { display: flex; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px; width: min(320px, 90vw); text-align: center; }
+  .card h2 { margin: 0 0 6px; font-size: 18px; }
+  .card p { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+  .card input {
+    width: 100%; font-size: 22px; text-align: center; letter-spacing: .3em; padding: 10px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); margin-bottom: 12px; user-select: text;
+  }
+  .card .btn { width: 100%; }
+
+  /* Phone held sideways: sticks under each thumb, controls in the middle. */
+  @media (orientation: landscape) and (max-height: 600px) {
+    body {
+      grid-template-columns: 1fr minmax(240px, 36%) 1fr;
+      grid-template-rows: auto 1fr auto;
+      grid-template-areas:
+        "status status status"
+        "left   actions right"
+        "left   estop   right";
+    }
+    .sticks { display: contents; }
+    .stick-wrap.left { grid-area: left; }
+    .stick-wrap.right { grid-area: right; }
+    .stick { width: min(100%, 62dvh); }
+    .actions { align-content: start; gap: 6px; }
+    .btn { min-height: 38px; padding: 8px 6px; }
+    .slider-row { padding: 3px 10px; }
+    .seg button { padding: 6px; }
+    .btn.estop { min-height: 52px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="status">
+  <div class="brand"><span class="dot" id="linkDot"></span>Spot</div>
+  <span class="chip" id="chipBattery">--%</span>
+  <span class="chip" id="chipPower">Motors --</span>
+  <span class="chip" id="chipEstop">E-Stop --</span>
+  <button class="icon-btn" id="btnFullscreen" aria-label="Fullscreen">⛶</button>
+</header>
+
+<section class="actions">
+  <button class="btn primary" id="btnPower">Power On</button>
+  <button class="btn" id="btnStand">Stand</button>
+  <button class="btn" id="btnSit">Sit</button>
+  <div class="seg" role="tablist">
+    <button id="modeWalk" class="active">Walk</button>
+    <button id="modePose">Body pose</button>
+  </div>
+  <label class="slider-row"><span>Speed</span><input type="range" id="speed" min="10" max="100" step="5" value="50"><output id="speedOut">50%</output></label>
+  <label class="slider-row"><span>Height</span><input type="range" id="height" min="-15" max="15" step="1" value="0"><output id="heightOut">0 cm</output></label>
+  <button class="btn" id="btnSelfRight">Self-right</button>
+  <button class="btn" id="btnBattery">Roll over</button>
+  <button class="btn" id="btnReconnect">Reconnect</button>
+</section>
+
+<section class="sticks">
+  <div class="stick-wrap left">
+    <div class="stick" id="stickL"><div class="knob"></div></div>
+    <div class="stick-label" id="labelL">Move · Strafe</div>
+  </div>
+  <div class="stick-wrap right">
+    <div class="stick" id="stickR"><div class="knob"></div></div>
+    <div class="stick-label" id="labelR">Turn</div>
+  </div>
+</section>
+
+<section class="estop-area">
+  <button class="btn stop" id="btnStop">Stop</button>
+  <button class="btn estop" id="btnEstop">E-STOP</button>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<div class="overlay" id="pinOverlay">
+  <form class="card" id="pinForm">
+    <h2>Enter PIN</h2>
+    <p>This controller is protected. Enter the PIN set on the server.</p>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off">
+    <button class="btn primary" type="submit">Connect</button>
+  </form>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const SEND_HZ = 10;
+
+  // Max speeds before the speed slider (server clamps again).
+  const MAX = { vx: 1.0, vy: 0.5, vrot: 1.0, yaw: 0.5, pitch: 0.5, roll: 0.4 };
+
+  let ws = null;
+  let ready = false;
+  let mode = 'walk';
+  let state = { powered: false, estopped: false };
+  const sticks = { L: { x: 0, y: 0, active: false }, R: { x: 0, y: 0, active: false } };
+
+  function store(key, value) { try { localStorage.setItem(key, value); } catch {} }
+  function load(key) { try { return localStorage.getItem(key); } catch { return null; } }
+
+  // ---------- Feedback ----------
+  let toastTimer;
+  function toast(msg, isError = false) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.className = 'toast', isError ? 3500 : 1800);
+  }
+  function buzz(ms = 15) { if (navigator.vibrate) navigator.vibrate(ms); }
+
+  // ---------- Connection ----------
+  function connect() {
+    if (ws) { try { ws.close(); } catch {} }
+    ready = false;
+    setLink(false);
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', pin: load('spotPin') || '' }));
+    ws.onmessage = ev => handle(JSON.parse(ev.data));
+    ws.onclose = ev => {
+      ready = false;
+      setLink(false);
+      if (ev.code === 4001) { $('pinOverlay').classList.add('show'); $('pinInput').focus(); return; }
+      if (ev.code === 4002) return;  // another device is in control; the error toast already explains
+      setTimeout(connect, 1500);
+    };
+  }
+
+  function send(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN && ready) { ws.send(JSON.stringify(msg)); return true; }
+    return false;
+  }
+
+  function command(type) {
+    buzz();
+    if (!send({ type })) toast('Not connected', true);
+  }
+
+  function handle(msg) {
+    switch (msg.type) {
+      case 'ready': ready = true; setLink(true); toast('Connected'); break;
+      case 'status': applyStatus(msg); break;
+      case 'ack': toast(labelFor(msg.command) + ' ✓'); break;
+      case 'error': toast(msg.message, true); buzz([40, 60, 40]); break;
+    }
+  }
+
+  function labelFor(cmd) {
+    return ({ power_on: 'Power on', power_off: 'Power off', sit: 'Sit', stop: 'Stop', self_right: 'Self-right',
+              battery_change: 'Roll over', estop: 'E-Stop', estop_release: 'E-Stop released' })[cmd] || cmd;
+  }
+
+  function setLink(on) {
+    $('linkDot').classList.toggle('on', on);
+    if (!on) {
+      setChip('chipBattery', '--%', '');
+      setChip('chipPower', 'Offline', 'bad');
+      setChip('chipEstop', 'E-Stop --', '');
+    }
+  }
+
+  function setChip(id, text, cls) { const c = $(id); c.textContent = text; c.className = 'chip ' + cls; }
+
+  function applyStatus(s) {
+    if (!s.connected) {
+      setChip('chipPower', 'No robot', 'bad');
+      $('chipPower').title = s.error || '';
+      state = { powered: false, estopped: false };
+      return;
+    }
+    $('chipPower').title = '';
+    state = s;
+    if (s.battery != null) setChip('chipBattery', `🔋 ${s.battery}%`, s.battery < 20 ? 'bad' : s.battery < 40 ? 'warn' : 'ok');
+    setChip('chipPower', s.powered ? 'Motors on' : 'Motors off', s.powered ? 'ok' : '');
+    setChip('chipEstop', s.estopped ? 'E-Stopped' : (s.software_estop ? 'E-Stop armed' : 'No phone E-Stop'),
+            s.estopped ? 'bad' : (s.software_estop ? 'ok' : 'warn'));
+    if (s.mock) $('linkDot').title = 'Mock robot';
+
+    const power = $('btnPower');
+    power.textContent = s.powered ? 'Power Off' : 'Power On';
+    power.classList.toggle('primary', !s.powered);
+    power.disabled = s.estopped;
+
+    const estop = $('btnEstop');
+    estop.textContent = s.estopped ? 'Release E-Stop' : 'E-STOP';
+    estop.classList.toggle('release', s.estopped);
+    estop.disabled = !s.software_estop;
+
+    for (const id of ['btnStand', 'btnSit', 'btnSelfRight', 'btnBattery']) $(id).disabled = !s.powered;
+    $('stickL').classList.toggle('disabled', !s.powered);
+    $('stickR').classList.toggle('disabled', !s.powered);
+  }
+
+  // ---------- Joysticks ----------
+  function bindStick(el, key) {
+    const knob = el.querySelector('.knob');
+    let pointerId = null;
+
+    function update(ev) {
+      const r = el.getBoundingClientRect();
+      const radius = r.width / 2;
+      let dx = ev.clientX - (r.left + radius);
+      let dy = ev.clientY - (r.top + radius);
+      const travel = radius * 0.62;
+      const dist = Math.hypot(dx, dy);
+      if (dist > travel) { dx *= travel / dist; dy *= travel / dist; }
+      knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+      // Dead zone so a resting thumb doesn't creep the robot.
+      const dz = v => Math.abs(v) < 0.08 ? 0 : v;
+      sticks[key].x = dz(dx / travel);
+      sticks[key].y = dz(-dy / travel);
+    }
+
+    function release() {
+      pointerId = null;
+      sticks[key] = { x: 0, y: 0, active: false };
+      knob.style.transform = 'translate(-50%, -50%)';
+      el.classList.remove('active');
+      sendZero();
+    }
+
+    el.addEventListener('pointerdown', ev => {
+      if (pointerId !== null) return;
+      if (!state.powered) { toast('Power on first'); return; }
+      pointerId = ev.pointerId;
+      try { el.setPointerCapture(ev.pointerId); } catch {}
+      sticks[key].active = true;
+      el.classList.add('active');
+      buzz(8);
+      update(ev);
+    });
+    el.addEventListener('pointermove', ev => { if (ev.pointerId === pointerId) update(ev); });
+    el.addEventListener('pointerup', ev => { if (ev.pointerId === pointerId) release(); });
+    el.addEventListener('pointercancel', ev => { if (ev.pointerId === pointerId) release(); });
+    el.addEventListener('lostpointercapture', ev => { if (ev.pointerId === pointerId) release(); });
+  }
+
+  function speed() { return Number($('speed').value) / 100; }
+  function height() { return Number($('height').value) / 100; }
+
+  function sendZero() {
+    if (sticks.L.active || sticks.R.active) return;
+    if (mode === 'walk') send({ type: 'move', vx: 0, vy: 0, vrot: 0 });
+    else send({ type: 'stand', height: height() });
+  }
+
+  // Commands only flow while a thumb is on a stick. Spot stops by itself ~0.6 s
+  // after the last move command, so a dropped connection can't leave it walking.
+  setInterval(() => {
+    if (!(sticks.L.active || sticks.R.active) || !state.powered) return;
+    const L = sticks.L, R = sticks.R, k = speed();
+    if (mode === 'walk') {
+      send({ type: 'move', vx: L.y * MAX.vx * k, vy: -L.x * MAX.vy * k, vrot: -R.x * MAX.vrot * k });
+    } else {
+      send({ type: 'stand', height: height(), roll: L.x * MAX.roll, yaw: -R.x * MAX.yaw, pitch: -R.y * MAX.pitch });
+    }
+  }, 1000 / SEND_HZ);
+
+  // Stop if the page is hidden (screen locked, app switched).
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      sticks.L.active = sticks.R.active = false;
+      send({ type: 'stop' });
+    }
+  });
+
+  // ---------- Controls ----------
+  function setMode(m) {
+    mode = m;
+    $('modeWalk').classList.toggle('active', m === 'walk');
+    $('modePose').classList.toggle('active', m === 'pose');
+    $('labelL').textContent = m === 'walk' ? 'Move · Strafe' : 'Roll';
+    $('labelR').textContent = m === 'walk' ? 'Turn' : 'Look (yaw · pitch)';
+    if (m === 'pose' && state.powered) send({ type: 'stand', height: height() });
+    buzz();
+  }
+
+  $('modeWalk').onclick = () => setMode('walk');
+  $('modePose').onclick = () => setMode('pose');
+
+  $('speed').oninput = e => { $('speedOut').textContent = e.target.value + '%'; store('spotSpeed', e.target.value); };
+  $('height').oninput = e => { $('heightOut').textContent = e.target.value + ' cm'; };
+  $('height').onchange = () => { if (state.powered) send({ type: 'stand', height: height() }); };
+
+  $('btnPower').onclick = () => {
+    if (state.powered) {
+      if (confirm('Power off motors? Spot will sit down first.')) command('power_off');
+    } else {
+      toast('Powering on…');
+      command('power_on');
+    }
+  };
+  $('btnStand').onclick = () => { buzz(); send({ type: 'stand', height: height() }); };
+  $('btnSit').onclick = () => command('sit');
+  $('btnSelfRight').onclick = () => { if (confirm('Run self-right? Only use this if Spot has fallen over.')) command('self_right'); };
+  $('btnBattery').onclick = () => { if (confirm('Roll Spot onto its side for battery change? Spot must be sitting.')) command('battery_change'); };
+  $('btnStop').onclick = () => command('stop');
+  $('btnReconnect').onclick = () => { toast('Reconnecting…'); connect(); };
+
+  // E-Stop reacts on touch-down, not click, so it fires as fast as possible.
+  $('btnEstop').addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    if (state.estopped) {
+      if (confirm('Release the E-Stop? Make sure the area around Spot is clear.')) command('estop_release');
+    } else {
+      buzz([60, 40, 60]);
+      sticks.L.active = sticks.R.active = false;
+      command('estop');
+    }
+  });
+
+  $('btnFullscreen').onclick = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    } catch { toast('Fullscreen not supported here. Add to Home Screen instead.'); }
+  };
+
+  $('pinForm').onsubmit = ev => {
+    ev.preventDefault();
+    store('spotPin', $('pinInput').value);
+    $('pinOverlay').classList.remove('show');
+    connect();
+  };
+
+  // Keep the screen awake (only works over HTTPS or localhost).
+  async function keepAwake() { try { await navigator.wakeLock?.request('screen'); } catch {} }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(); });
+
+  // Stop iOS double-tap zoom and pull-to-refresh.
+  document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+  document.addEventListener('touchmove', e => { if (!e.target.closest('input')) e.preventDefault(); }, { passive: false });
+
+  const savedSpeed = load('spotSpeed');
+  if (savedSpeed) { $('speed').value = savedSpeed; $('speedOut').textContent = savedSpeed + '%'; }
+  bindStick($('stickL'), 'L');
+  bindStick($('stickR'), 'R');
+  setLink(false);
+  keepAwake();
+  connect();
+})();
+</script>
+</body>
+</html>

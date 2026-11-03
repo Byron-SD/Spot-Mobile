@@ -1,0 +1,11 @@
+# Rebuilt on each computer by start-laptop.ps1 / pip
+.venv/
+__pycache__/
+
+# Contain Spot credentials; never commit
+extension.env
+dist/
+
+# Local tooling and build output
+.claude/
+*.zip

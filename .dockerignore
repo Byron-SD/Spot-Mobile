@@ -1,0 +1,7 @@
+.venv
+.claude
+build
+dist
+extension.env
+__pycache__
+*.spx
